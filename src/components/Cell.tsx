@@ -6,6 +6,7 @@ interface Props {
   index: number;
   value: string;
   isPlayer: boolean;
+  winner: boolean;
   toggle: (index: number) => void;
 }
 
@@ -18,7 +19,7 @@ class Cell extends Component<Props> {
 
   render() {
     const {
-      props: { index, value, toggle, isPlayer },
+      props: { index, value, winner, toggle, isPlayer },
       clickHandler
     } = this;
 
@@ -31,9 +32,12 @@ class Cell extends Component<Props> {
       width: 100px;
       font-size: 3rem;
       cursor: default;
-      ${value === "-" &&
+      transition: all 0.2s ease;
+
+      ${!winner &&
+        value === "-" &&
         `&:hover {
-      background-color: #999999;
+      background-color: gray;
       cursor: pointer;
     }`}
     `;
@@ -41,11 +45,7 @@ class Cell extends Component<Props> {
     return (
       <div
         css={style}
-        onClick={() =>
-          isPlayer
-            ? clickHandler(index, value, toggle)
-            : console.log("not playing")
-        }
+        onClick={() => (isPlayer ? clickHandler(index, value, toggle) : {})}
       >
         {value === "-" ? "" : value}
       </div>

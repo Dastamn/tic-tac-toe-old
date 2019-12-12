@@ -9,14 +9,64 @@ interface State {
   x_history: string[][];
   o_history: string[][];
   current: string[];
-  data: any;
+  data: { [key: string]: { [key: string]: number } };
+  player_wins: number;
+  computer_wins: number;
 }
+
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+`;
+
+const Header = styled.header`
+  text-align: center;
+
+  h1 {
+    font-size: 2.5rem;
+  }
+
+  button {
+    padding: 10px 15px;
+    background-color: black;
+    border-radius: 10px;
+    border-width: 3px;
+    border: 1.5px solid gray;
+    color: gray;
+    text-transform: capitalize;
+    transition: all 0.2s ease;
+  }
+
+  button:hover {
+    cursor: pointer;
+    border-color: white;
+    color: white;
+  }
+
+  button:focus {
+    outline: 0;
+  }
+
+  h1,
+  h2,
+  button {
+    margin-bottom: 20px;
+  }
+`;
 
 const GridContainer = styled.div`
   display: grid;
   grid-gap: 2px;
   grid-template-columns: repeat(3, 100px);
   grid-template-rows: repeat(3, 100px);
+`;
+
+const Footer = styled.footer`
+  display: flex;
+  font-weight: bold;
+  justify-content: space-around;
+  margin-top: 20px;
 `;
 
 const wins = [
@@ -72,7 +122,9 @@ export default class Game extends Component {
     x_history: [],
     o_history: [],
     current: new Array(9).fill("-"),
-    data: gameBasics
+    data: gameBasics,
+    player_wins: 0,
+    computer_wins: 0
   };
 
   resetGame = () => {
@@ -150,7 +202,17 @@ export default class Game extends Component {
         current[a] === current[b] &&
         current[b] === current[c]
       ) {
-        this.setState({ winner: !isX ? "Player" : "Computer" });
+        if (!isX) {
+          this.setState({
+            winner: "Player",
+            player_wins: this.state.player_wins + 1
+          });
+        } else {
+          this.setState({
+            winner: "Computer",
+            computer_wins: this.state.computer_wins + 1
+          });
+        }
       }
     });
   };
@@ -169,7 +231,8 @@ export default class Game extends Component {
       .join("");
     const objP = data[playerCurrent];
     const objC = data[computerCurrent];
-    let possMove, nextMove;
+    let possMove: string;
+    let nextMove: [string, number] | undefined;
     if (objP) {
       possMove = Object.keys(objP).sort((a, b) => objP[b] - objP[a])[0];
       nextMove = [possMove, objP[possMove]];
@@ -218,7 +281,7 @@ export default class Game extends Component {
 
   render() {
     const {
-      state: { winner, isX, current },
+      state: { winner, isX, current, step, player_wins, computer_wins },
       toggleHandler,
       play,
       resetGame
@@ -229,25 +292,37 @@ export default class Game extends Component {
     }
 
     return (
-      <div>
-        {winner ? (
-          <h1>{winner} wins!</h1>
-        ) : (
-          <h1>{isX ? "Player turn" : "Computer turn"}</h1>
-        )}
-        <button onClick={resetGame}>New Game</button>
+      <Container>
+        <Header>
+          <h1>Tic Tac Toe</h1>
+          <h2>
+            {winner
+              ? `${winner} won is ${step} steps!`
+              : step === 9
+              ? "Tie!"
+              : isX
+              ? "It's your turn!"
+              : "Computer turn..."}
+          </h2>
+          <button onClick={resetGame}>New Game</button>
+        </Header>
         <GridContainer>
           {current.map((value, index) => (
             <Cell
               key={index}
               index={index}
               value={value}
+              winner={winner !== undefined}
               isPlayer={isX}
               toggle={toggleHandler}
             />
           ))}
         </GridContainer>
-      </div>
+        <Footer>
+          <span>Player: {player_wins}</span>
+          <span>Computer: {computer_wins}</span>
+        </Footer>
+      </Container>
     );
   }
 }
