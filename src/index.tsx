@@ -7,7 +7,7 @@ import Game from "./components/Game";
 const Container = styled.div`
   display: flex;
   justify-content: center;
-  margin-top: 80px;
+  margin: 50px 0;
 `;
 
 ReactDOM.render(

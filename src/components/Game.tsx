@@ -66,7 +66,7 @@ const Footer = styled.footer`
   display: flex;
   font-weight: bold;
   justify-content: space-around;
-  margin-top: 20px;
+  margin: 20px 0;
 `;
 
 const wins = [
@@ -297,7 +297,7 @@ export default class Game extends Component {
           <h1>Tic Tac Toe</h1>
           <h2>
             {winner
-              ? `${winner} won is ${step} steps!`
+              ? `${winner} won in ${step} steps!`
               : step === 9
               ? "Tie!"
               : isX
