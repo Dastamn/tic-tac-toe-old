@@ -144,23 +144,48 @@ export default class Game extends Component {
       state: { winner, x_history, o_history, data }
     } = this;
     if (winner) {
-      const history =
+      const posReward =
         winner === "Player"
-          ? [...x_history].map(array =>
-              array.map(value => (value === "X" ? "O" : "-"))
+          ? x_history.map(array =>
+              array.map(value =>
+                value === "X" ? "O" : value === "O" ? "X" : "-"
+              )
             )
-          : [...o_history].map(array =>
-              array.map(value => (value === "O" ? "O" : "-"))
+          : [...o_history];
+      const negReward =
+        winner === "Player"
+          ? [...o_history]
+          : x_history.map(array =>
+              array.map(value =>
+                value === "X" ? "O" : value === "O" ? "X" : "-"
+              )
             );
-      for (let i = 0; i < history.length - 1; i++) {
-        const current = history[i].join("");
-        const next = history[i + 1].join("");
-        if (!data[current]) {
-          data[current] = {};
+      let i = 0;
+      while (i < posReward.length - 1) {
+        const curr = posReward[i].join("");
+        const next = posReward[i + 1].join("");
+        if (data[curr] === undefined) {
+          data[curr] = {};
         }
-        data[current][next] = ++data[current][next] || 1;
+        data[curr][next] = ++data[curr][next] || 1;
+        i++;
+      }
+      i = 0;
+      while (i < negReward.length - 1) {
+        const curr = negReward[i].join("");
+        const next = negReward[i + 1].join("");
+        if (data[curr] && data[curr][next]) {
+          if (data[curr][next] && data[curr][next] > 1) {
+            data[curr][next] = --data[curr][next];
+          } else {
+            delete data[curr];
+          }
+          console.log("delete");
+        }
+        i++;
       }
       this.setState({ data });
+      // console.log("update", this.state);
     }
   };
 
@@ -173,9 +198,11 @@ export default class Game extends Component {
       const current = [...state.current];
       if (state.isX) {
         current[index] = "X";
+        x_history.push(state.current);
         x_history.push(current);
       } else {
         current[index] = "O";
+        o_history.push(state.current);
         o_history.push(current);
       }
       this.setState(
@@ -223,38 +250,17 @@ export default class Game extends Component {
       toggleHandler,
       playRandomly
     } = this;
-    const playerCurrent = current
-      .map(value => (value === "X" ? "O" : value === "O" ? "-" : "-"))
-      .join("");
-    const computerCurrent = current
-      .map(value => (value === "O" ? "O" : "-"))
-      .join("");
-    const objP = data[playerCurrent];
-    const objC = data[computerCurrent];
-    let possMove: string;
-    let nextMove: [string, number] | undefined;
-    if (objP) {
-      possMove = Object.keys(objP).sort((a, b) => objP[b] - objP[a])[0];
-      nextMove = [possMove, objP[possMove]];
-    }
-    if (objC) {
-      possMove = Object.keys(objC).sort((a, b) => objC[b] - objC[a])[0];
-      if (!nextMove || nextMove[1] <= objC[possMove]) {
-        nextMove = [possMove, objC[possMove]];
-      }
-    }
-    if (nextMove) {
-      const array = nextMove[0].split("");
-      let i = 0;
-      while (i < array.length) {
-        if (current[i] === "-" && current[i] !== array[i]) {
+    const poss = data[current.join("")];
+    if (poss) {
+      const nextMove = Object.keys(poss)
+        .sort((a, b) => poss[b] - poss[a])[0]
+        .split("");
+      console.log("next move", nextMove);
+      for (let i = 0; i < nextMove.length; i++) {
+        if (current[i] !== nextMove[i]) {
           toggleHandler(i);
           break;
         }
-        i++;
-      }
-      if (i >= array.length) {
-        playRandomly();
       }
     } else {
       playRandomly();
@@ -263,19 +269,22 @@ export default class Game extends Component {
 
   playRandomly = () => {
     const {
-      state: { current },
+      state: { current, winner },
       toggleHandler,
       checkWinner
     } = this;
-    const indexArray = current
-      .map((value, index) => (value === "-" ? index : undefined))
-      .filter(value => value !== undefined);
-    const randomMove =
-      indexArray[Math.floor(Math.random() * indexArray.length)];
-    if (randomMove !== undefined) {
-      toggleHandler(randomMove);
-    } else {
-      checkWinner();
+    if (!winner) {
+      console.log("random move");
+      const indexArray = current
+        .map((value, index) => (value === "-" ? index : undefined))
+        .filter(value => value !== undefined);
+      const randomMove =
+        indexArray[Math.floor(Math.random() * indexArray.length)];
+      if (randomMove !== undefined) {
+        toggleHandler(randomMove);
+      } else {
+        checkWinner();
+      }
     }
   };
 
@@ -304,7 +313,9 @@ export default class Game extends Component {
               ? "It's your turn!"
               : "Computer turn..."}
           </h2>
-          <button onClick={resetGame}>New Game</button>
+          <button onClick={resetGame}>
+            {winner ? "Try again!" : "New Game"}
+          </button>
         </Header>
         <GridContainer>
           {current.map((value, index) => (
