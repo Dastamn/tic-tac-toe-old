@@ -1,7 +1,6 @@
 import React, { Component } from "react";
 import styled from "@emotion/styled";
 import Cell from "./Cell";
-import { arrayExpression } from "@babel/types";
 
 interface State {
   winner: string | undefined;
@@ -31,6 +30,40 @@ const wins = [
   [2, 4, 6]
 ];
 
+const gameBasics = {
+  "OO-------": { "OOO------": 10 },
+  "-OO------": { "OOO------": 10 },
+  "O-O------": { "OOO------": 10 },
+
+  "---OO----": { "---OOO---": 10 },
+  "----OO---": { "---OOO---": 10 },
+  "---O-O---": { "---OOO---": 10 },
+
+  "------OO-": { "------OOO": 10 },
+  "-------OO": { "------OOO": 10 },
+  "------O-O": { "------OOO": 10 },
+
+  "O--O-----": { "O--O--O--": 10 },
+  "---O--O--": { "O--O--O--": 10 },
+  "O-----O--": { "O--O--O--": 10 },
+
+  "-O--O----": { "-O--O--O-": 10 },
+  "----O--O-": { "-O--O--O-": 10 },
+  "-O-----O-": { "-O--O--O-": 10 },
+
+  "--O--O---": { "--O--O--O": 10 },
+  "-----O--O": { "--O--O--O": 10 },
+  "--O-----O": { "--O--O--O": 10 },
+
+  "O---O----": { "O---O---O": 10 },
+  "----O---O": { "O---O---O": 10 },
+  "O-------O": { "O---O---O": 10 },
+
+  "--O-O----": { "--O-O-O--": 10 },
+  "----O-O--": { "--O-O-O--": 10 },
+  "--O---O--": { "--O-O-O--": 10 }
+};
+
 export default class Game extends Component {
   state: State = {
     winner: undefined,
@@ -39,7 +72,7 @@ export default class Game extends Component {
     x_history: [],
     o_history: [],
     current: new Array(9).fill("-"),
-    data: {}
+    data: gameBasics
   };
 
   resetGame = () => {
@@ -58,33 +91,38 @@ export default class Game extends Component {
     const {
       state: { winner, x_history, o_history, data }
     } = this;
-    const history = winner === "Player" ? [...x_history] : [o_history];
-    for (let i = 0; i < history.length - 1; i++) {
-      const current = history[i].join("");
-      const next = history[i + 1].join("");
-      if (!data[current]) {
-        data[current] = {};
+    if (winner) {
+      const history =
+        winner === "Player"
+          ? [...x_history].map(array =>
+              array.map(value => (value === "X" ? "O" : "-"))
+            )
+          : [...o_history].map(array =>
+              array.map(value => (value === "O" ? "O" : "-"))
+            );
+      for (let i = 0; i < history.length - 1; i++) {
+        const current = history[i].join("");
+        const next = history[i + 1].join("");
+        if (!data[current]) {
+          data[current] = {};
+        }
+        data[current][next] = ++data[current][next] || 1;
       }
-      data[current][next] = ++data[current][next] || 1;
+      this.setState({ data });
     }
-    this.setState({ data });
   };
 
   toggleHandler = (index: number) => {
-    console.log("toggle: " + index);
     const { state } = this;
     if (!state.winner) {
       const { checkWinner } = this;
-      console.log(state.isX ? "player turn" : "computer turn");
       const x_history = [...state.x_history];
       const o_history = [...state.o_history];
       const current = [...state.current];
       if (state.isX) {
-        x_history.push(state.current);
         current[index] = "X";
         x_history.push(current);
       } else {
-        o_history.push(state.current);
         current[index] = "O";
         o_history.push(current);
       }
@@ -112,9 +150,7 @@ export default class Game extends Component {
         current[a] === current[b] &&
         current[b] === current[c]
       ) {
-        console.log(!isX ? "Player wins" : "Computer wins");
         this.setState({ winner: !isX ? "Player" : "Computer" });
-        console.log("end game");
       }
     });
   };
@@ -123,31 +159,60 @@ export default class Game extends Component {
     const {
       state: { current, data },
       toggleHandler,
-      checkWinner
+      playRandomly
     } = this;
-    const obj = data[current.join("")];
-    if (obj) {
-      const next = Object.keys(obj)
-        .sort((a, b) => obj[b] - obj[a])[0]
-        .split("");
-      for (let i = 0; i < next.length; i++) {
-        if (current[i] !== next[i]) {
+    const playerCurrent = current
+      .map(value => (value === "X" ? "O" : value === "O" ? "-" : "-"))
+      .join("");
+    const computerCurrent = current
+      .map(value => (value === "O" ? "O" : "-"))
+      .join("");
+    const objP = data[playerCurrent];
+    const objC = data[computerCurrent];
+    let possMove, nextMove;
+    if (objP) {
+      possMove = Object.keys(objP).sort((a, b) => objP[b] - objP[a])[0];
+      nextMove = [possMove, objP[possMove]];
+    }
+    if (objC) {
+      possMove = Object.keys(objC).sort((a, b) => objC[b] - objC[a])[0];
+      if (!nextMove || nextMove[1] <= objC[possMove]) {
+        nextMove = [possMove, objC[possMove]];
+      }
+    }
+    if (nextMove) {
+      const array = nextMove[0].split("");
+      let i = 0;
+      while (i < array.length) {
+        if (current[i] === "-" && current[i] !== array[i]) {
           toggleHandler(i);
           break;
         }
+        i++;
       }
-      console.log("current: " + current, "next: ", next);
+      if (i >= array.length) {
+        playRandomly();
+      }
     } else {
-      const indexArray = current
-        .map((value, index) => (value === "-" ? index : undefined))
-        .filter(value => value !== undefined);
-      const randomMove =
-        indexArray[Math.floor(Math.random() * indexArray.length)];
-      if (randomMove !== undefined) {
-        toggleHandler(randomMove);
-      } else {
-        checkWinner();
-      }
+      playRandomly();
+    }
+  };
+
+  playRandomly = () => {
+    const {
+      state: { current },
+      toggleHandler,
+      checkWinner
+    } = this;
+    const indexArray = current
+      .map((value, index) => (value === "-" ? index : undefined))
+      .filter(value => value !== undefined);
+    const randomMove =
+      indexArray[Math.floor(Math.random() * indexArray.length)];
+    if (randomMove !== undefined) {
+      toggleHandler(randomMove);
+    } else {
+      checkWinner();
     }
   };
 
@@ -160,11 +225,8 @@ export default class Game extends Component {
     } = this;
 
     if (!isX && !winner) {
-      console.log("NO WINNER");
       setTimeout(() => play(), 500);
     }
-
-    // console.log(this.state);
 
     return (
       <div>
