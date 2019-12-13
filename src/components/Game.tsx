@@ -1,6 +1,7 @@
 import React, { Component } from "react";
 import styled from "@emotion/styled";
 import Cell from "./Cell";
+import model from "../model.json";
 
 interface State {
   winner: string | undefined;
@@ -12,6 +13,8 @@ interface State {
   data: { [key: string]: { [key: string]: number } };
   player_wins: number;
   computer_wins: number;
+  // stop: boolean;
+  // epsilon: number;
 }
 
 const Container = styled.div`
@@ -80,51 +83,68 @@ const wins = [
   [2, 4, 6]
 ];
 
-const gameBasics = {
-  "OO-------": { "OOO------": 10 },
-  "-OO------": { "OOO------": 10 },
-  "O-O------": { "OOO------": 10 },
+// const gameBasics = {
+//   "OO-------": { "OOO------": 1 },
+//   "-OO------": { "OOO------": 1 },
+//   "O-O------": { "OOO------": 1 },
 
-  "---OO----": { "---OOO---": 10 },
-  "----OO---": { "---OOO---": 10 },
-  "---O-O---": { "---OOO---": 10 },
+//   "---OO----": { "---OOO---": 1 },
+//   "----OO---": { "---OOO---": 1 },
+//   "---O-O---": { "---OOO---": 1 },
 
-  "------OO-": { "------OOO": 10 },
-  "-------OO": { "------OOO": 10 },
-  "------O-O": { "------OOO": 10 },
+//   "------OO-": { "------OOO": 1 },
+//   "-------OO": { "------OOO": 1 },
+//   "------O-O": { "------OOO": 1 },
 
-  "O--O-----": { "O--O--O--": 10 },
-  "---O--O--": { "O--O--O--": 10 },
-  "O-----O--": { "O--O--O--": 10 },
+//   "O--O-----": { "O--O--O--": 1 },
+//   "---O--O--": { "O--O--O--": 1 },
+//   "O-----O--": { "O--O--O--": 1 },
 
-  "-O--O----": { "-O--O--O-": 10 },
-  "----O--O-": { "-O--O--O-": 10 },
-  "-O-----O-": { "-O--O--O-": 10 },
+//   "-O--O----": { "-O--O--O-": 1 },
+//   "----O--O-": { "-O--O--O-": 1 },
+//   "-O-----O-": { "-O--O--O-": 1 },
 
-  "--O--O---": { "--O--O--O": 10 },
-  "-----O--O": { "--O--O--O": 10 },
-  "--O-----O": { "--O--O--O": 10 },
+//   "--O--O---": { "--O--O--O": 1 },
+//   "-----O--O": { "--O--O--O": 1 },
+//   "--O-----O": { "--O--O--O": 1 },
 
-  "O---O----": { "O---O---O": 10 },
-  "----O---O": { "O---O---O": 10 },
-  "O-------O": { "O---O---O": 10 },
+//   "O---O----": { "O---O---O": 1 },
+//   "----O---O": { "O---O---O": 1 },
+//   "O-------O": { "O---O---O": 1 },
 
-  "--O-O----": { "--O-O-O--": 10 },
-  "----O-O--": { "--O-O-O--": 10 },
-  "--O---O--": { "--O-O-O--": 10 }
+//   "--O-O----": { "--O-O-O--": 1 },
+//   "----O-O--": { "--O-O-O--": 1 },
+//   "--O---O--": { "--O-O-O--": 1 }
+// };
+
+const lr = 0.9;
+const data = model["data"];
+const knowledge = data["moves"];
+
+const spread = (max: number) => {
+  const arr = [];
+  const start = 0.2;
+  const stop = 1;
+  const step = (stop - start) / (max - 1);
+  for (var i = 0; i < max; i++) {
+    arr.push(Number((start + step * i).toFixed(2)));
+  }
+  return arr;
 };
 
 export default class Game extends Component {
   state: State = {
+    // stop: false,
     winner: undefined,
     isX: Math.floor(Math.random() * 2) === 1,
     step: 0,
     x_history: [],
     o_history: [],
     current: new Array(9).fill("-"),
-    data: gameBasics,
+    data: knowledge,
     player_wins: 0,
     computer_wins: 0
+    // epsilon: 0.7
   };
 
   resetGame = () => {
@@ -136,12 +156,14 @@ export default class Game extends Component {
       x_history: [],
       o_history: [],
       current: new Array(9).fill("-")
+      // epsilon:
+      //   this.state.epsilon > 0 ? this.state.epsilon - 0.01 : this.state.epsilon
     });
   };
 
   updateData = () => {
     const {
-      state: { winner, x_history, o_history, data }
+      state: { winner, x_history, o_history, data, computer_wins, player_wins }
     } = this;
     if (winner) {
       const posReward =
@@ -160,32 +182,57 @@ export default class Game extends Component {
                 value === "X" ? "O" : value === "O" ? "X" : "-"
               )
             );
-      let i = 0;
-      while (i < posReward.length - 1) {
+      let i = posReward.length - 2;
+      let discountArray = spread(posReward.length - 1);
+      while (i >= 0) {
         const curr = posReward[i].join("");
         const next = posReward[i + 1].join("");
+        let maxNext = 0;
+        if (data[next] !== undefined) {
+          const key = Object.keys(data[next]).sort(
+            (a, b) => data[next][b] - data[next][a]
+          )[0];
+          maxNext = data[next][key] || 0;
+        }
+        let stateValue = 0;
+        if (data[curr] !== undefined) {
+          stateValue = data[curr][next] || 0;
+        }
+        const discount = discountArray.pop() || 0.1;
+        const reward = (1 - lr) * stateValue + lr * discount * (1 + maxNext);
         if (data[curr] === undefined) {
           data[curr] = {};
         }
-        data[curr][next] = ++data[curr][next] || 1;
-        i++;
+        data[curr][next] = Number(reward.toFixed(2));
+        i = i - 2;
       }
-      i = 0;
-      while (i < negReward.length - 1) {
-        const curr = negReward[i].join("");
-        const next = negReward[i + 1].join("");
-        if (data[curr] && data[curr][next]) {
-          if (data[curr][next] && data[curr][next] > 1) {
-            data[curr][next] = --data[curr][next];
-          } else {
-            delete data[curr];
-          }
-          console.log("delete");
+      i = negReward.length - 2;
+      discountArray = spread(negReward.length - 1);
+      while (i >= 0) {
+        const curr = posReward[i].join("");
+        const next = posReward[i + 1].join("");
+        let maxNext = 0;
+        if (data[next] !== undefined) {
+          const key = Object.keys(data[next]).sort(
+            (a, b) => data[next][b] - data[next][a]
+          )[0];
+          maxNext = data[next][key] || 0;
         }
-        i++;
+        let stateValue = 0;
+        if (data[curr] !== undefined) {
+          stateValue = data[curr][next] || 0;
+        }
+        const discount = discountArray.pop() || 0.1;
+        const reward = (1 - lr) * stateValue + lr * discount * (-1 + maxNext);
+        if (data[curr] === undefined) {
+          data[curr] = {};
+        }
+        data[curr][next] = Number(reward.toFixed(2));
+        i = i - 2;
       }
-      this.setState({ data });
-      // console.log("update", this.state);
+      this.setState({
+        data
+      });
     }
   };
 
@@ -215,6 +262,7 @@ export default class Game extends Component {
         },
         () => checkWinner()
       );
+      // console.log(this.state);
     }
   };
 
@@ -230,15 +278,21 @@ export default class Game extends Component {
         current[b] === current[c]
       ) {
         if (!isX) {
-          this.setState({
-            winner: "Player",
-            player_wins: this.state.player_wins + 1
-          });
+          this.setState(
+            {
+              winner: "Player",
+              player_wins: this.state.player_wins + 1
+            } /*,
+            () => this.resetGame()*/
+          );
         } else {
-          this.setState({
-            winner: "Computer",
-            computer_wins: this.state.computer_wins + 1
-          });
+          this.setState(
+            {
+              winner: "Computer",
+              computer_wins: this.state.computer_wins + 1
+            } /*,
+            () => this.resetGame()*/
+          );
         }
       }
     });
@@ -255,7 +309,6 @@ export default class Game extends Component {
       const nextMove = Object.keys(poss)
         .sort((a, b) => poss[b] - poss[a])[0]
         .split("");
-      console.log("next move", nextMove);
       for (let i = 0; i < nextMove.length; i++) {
         if (current[i] !== nextMove[i]) {
           toggleHandler(i);
@@ -274,7 +327,6 @@ export default class Game extends Component {
       checkWinner
     } = this;
     if (!winner) {
-      console.log("random move");
       const indexArray = current
         .map((value, index) => (value === "-" ? index : undefined))
         .filter(value => value !== undefined);
@@ -288,13 +340,52 @@ export default class Game extends Component {
     }
   };
 
+  saveData = () => {
+    const {
+      state: { data }
+    } = this;
+    fetch("http://localhost:3001/data", {
+      method: "post",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        moves: data
+      })
+    }).catch(err => console.log(err));
+  };
+
   render() {
     const {
-      state: { winner, isX, current, step, player_wins, computer_wins },
+      state: {
+        /*stop,*/ winner,
+        isX,
+        current,
+        step,
+        player_wins,
+        computer_wins
+      },
       toggleHandler,
       play,
       resetGame
     } = this;
+
+    // if (!stop) {
+    //   setTimeout(() => {
+    //     if (isX) {
+    //       this.playRandomly();
+    //     } else {
+    //       if (Math.random() <= this.state.epsilon) {
+    //         console.log("explore, epsilon: " + this.state.epsilon);
+    //         this.playRandomly();
+    //       } else {
+    //         console.log("exploit");
+    //         play();
+    //       }
+    //     }
+    //   }, 500);
+    //   if (step === 9) {
+    //     resetGame();
+    //   }
+    // }
 
     if (!isX && !winner) {
       setTimeout(() => play(), 500);
@@ -313,9 +404,25 @@ export default class Game extends Component {
               ? "It's your turn!"
               : "Computer turn..."}
           </h2>
-          <button onClick={resetGame}>
+          <button
+            style={winner ? { color: "white", borderColor: "white" } : {}}
+            onClick={resetGame}
+          >
             {winner ? "Try again!" : "New Game"}
           </button>
+          {/* <button
+            style={{ marginLeft: "10px" }}
+            onClick={() => {
+              this.setState({ stop: true });
+              console.log(this.state.data);
+              this.saveData();
+            }}
+          >
+            Stop
+          </button>
+          <button style={{ marginLeft: "10px" }} onClick={this.saveData}>
+            Save
+          </button> */}
         </Header>
         <GridContainer>
           {current.map((value, index) => (

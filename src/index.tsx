@@ -10,6 +10,13 @@ const Container = styled.div`
   margin: 50px 0;
 `;
 
+const d = {};
+if (d) {
+  console.log("ok");
+} else {
+  console.log("not ok");
+}
+
 ReactDOM.render(
   <Container>
     <Game />
