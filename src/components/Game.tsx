@@ -4,6 +4,7 @@ import Cell from "./Cell";
 import model from "../model.json";
 
 interface State {
+  isPlayer: boolean;
   winner: string | undefined;
   isX: boolean;
   step: number;
@@ -13,8 +14,12 @@ interface State {
   data: { [key: string]: { [key: string]: number } };
   player_wins: number;
   computer_wins: number;
-  // stop: boolean;
-  // epsilon: number;
+  stop: boolean;
+  epsilon: number;
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 const Container = styled.div`
@@ -132,9 +137,12 @@ const spread = (max: number) => {
   return arr;
 };
 
+/** */
+
 export default class Game extends Component {
   state: State = {
-    // stop: false,
+    isPlayer: Math.floor(Math.random() * 2) === 1,
+    stop: false,
     winner: undefined,
     isX: Math.floor(Math.random() * 2) === 1,
     step: 0,
@@ -143,8 +151,8 @@ export default class Game extends Component {
     current: new Array(9).fill("-"),
     data: knowledge,
     player_wins: 0,
-    computer_wins: 0
-    // epsilon: 0.7
+    computer_wins: 0,
+    epsilon: 0.7
   };
 
   resetGame = () => {
@@ -209,8 +217,8 @@ export default class Game extends Component {
       i = negReward.length - 2;
       discountArray = spread(negReward.length - 1);
       while (i >= 0) {
-        const curr = posReward[i].join("");
-        const next = posReward[i + 1].join("");
+        const curr = negReward[i].join("");
+        const next = negReward[i + 1].join("");
         let maxNext = 0;
         if (data[next] !== undefined) {
           const key = Object.keys(data[next]).sort(
@@ -230,9 +238,12 @@ export default class Game extends Component {
         data[curr][next] = Number(reward.toFixed(2));
         i = i - 2;
       }
-      this.setState({
-        data
-      });
+      this.setState(
+        {
+          data
+        },
+        () => console.log(this.state)
+      );
     }
   };
 
@@ -266,10 +277,26 @@ export default class Game extends Component {
     }
   };
 
+  whoWon = (board?: string[]) => {
+    let current = board ? board : this.state.current;
+    for (let win of wins) {
+      const [a, b, c] = win;
+      if (
+        (current[a] === "X" || current[a] === "O") &&
+        current[a] === current[b] &&
+        current[b] === current[c]
+      ) {
+        return current[a] === "O" ? -10 : 10;
+      }
+    }
+    return current.find(value => value === "-") ? undefined : 0;
+  };
+
   checkWinner = () => {
     const {
       state: { current, isX }
     } = this;
+    console.log("who won:", this.whoWon());
     wins.forEach(win => {
       const [a, b, c] = win;
       if (
@@ -282,36 +309,36 @@ export default class Game extends Component {
             {
               winner: "Player",
               player_wins: this.state.player_wins + 1
-            } /*,
-            () => this.resetGame()*/
+            },
+            () => this.resetGame()
           );
         } else {
           this.setState(
             {
               winner: "Computer",
               computer_wins: this.state.computer_wins + 1
-            } /*,
-            () => this.resetGame()*/
+            },
+            () => this.resetGame()
           );
         }
       }
     });
   };
 
-  play = () => {
+  play = async () => {
     const {
-      state: { current, data },
+      state: { data },
       toggleHandler,
       playRandomly
     } = this;
-    const poss = data[current.join("")];
+    const poss = data[this.state.current.join("")];
     if (poss) {
       const nextMove = Object.keys(poss)
         .sort((a, b) => poss[b] - poss[a])[0]
         .split("");
       for (let i = 0; i < nextMove.length; i++) {
-        if (current[i] !== nextMove[i]) {
-          toggleHandler(i);
+        if (this.state.current[i] !== nextMove[i]) {
+          await sleep(500).then(() => toggleHandler(i));
           break;
         }
       }
@@ -340,6 +367,19 @@ export default class Game extends Component {
     }
   };
 
+  playMiniMax = () => {
+    const {
+      state: { current, winner },
+      miniMax,
+      toggleHandler
+    } = this;
+    if (!winner) {
+      const move = miniMax([...current], true);
+      console.log("next move", move);
+      toggleHandler(move.index);
+    }
+  };
+
   saveData = () => {
     const {
       state: { data }
@@ -353,42 +393,71 @@ export default class Game extends Component {
     }).catch(err => console.log(err));
   };
 
+  miniMax = (board: string[], isMax: boolean) => {
+    const score = this.whoWon(board);
+    if (score !== undefined) {
+      return { score, index: 0 };
+    }
+    const moves: { score: number; index: number }[] = [];
+    for (let i = 0; i < board.length; i++) {
+      if (board[i] === "-") {
+        const move: any = {};
+        move.index = i;
+        board[i] = !isMax ? "O" : "X";
+        const result = this.miniMax(board, !isMax);
+        move.score = result.score;
+        board[i] = "-";
+        moves.push(move);
+      }
+    }
+    let bestMove;
+    if (isMax) {
+      let bestScore = -10;
+      for (let i = 0; i < moves.length; i++) {
+        if (moves[i].score > bestScore) {
+          bestScore = moves[i].score;
+          bestMove = i;
+        }
+      }
+    } else {
+      var bestScore = 10;
+      for (var i = 0; i < moves.length; i++) {
+        if (moves[i].score < bestScore) {
+          bestScore = moves[i].score;
+          bestMove = i;
+        }
+      }
+    }
+    return moves[bestMove || 0];
+  };
+
   render() {
     const {
-      state: {
-        /*stop,*/ winner,
-        isX,
-        current,
-        step,
-        player_wins,
-        computer_wins
-      },
+      state: { stop, winner, isX, current, step, player_wins, computer_wins },
       toggleHandler,
       play,
       resetGame
     } = this;
 
     // if (!stop) {
-    //   setTimeout(() => {
-    //     if (isX) {
+    //   if (isX) {
+    //     this.playMiniMax();
+    //   } else {
+    //     if (Math.random() <= this.state.epsilon) {
+    //       console.log("explore, epsilon: " + this.state.epsilon);
     //       this.playRandomly();
     //     } else {
-    //       if (Math.random() <= this.state.epsilon) {
-    //         console.log("explore, epsilon: " + this.state.epsilon);
-    //         this.playRandomly();
-    //       } else {
-    //         console.log("exploit");
-    //         play();
-    //       }
+    //       console.log("exploit");
+    //       play();
     //     }
-    //   }, 500);
+    //   }
     //   if (step === 9) {
     //     resetGame();
     //   }
     // }
 
     if (!isX && !winner) {
-      setTimeout(() => play(), 500);
+      setTimeout(() => this.playMiniMax(), 500);
     }
 
     return (
@@ -410,7 +479,7 @@ export default class Game extends Component {
           >
             {winner ? "Try again!" : "New Game"}
           </button>
-          {/* <button
+          <button
             style={{ marginLeft: "10px" }}
             onClick={() => {
               this.setState({ stop: true });
@@ -422,7 +491,7 @@ export default class Game extends Component {
           </button>
           <button style={{ marginLeft: "10px" }} onClick={this.saveData}>
             Save
-          </button> */}
+          </button>
         </Header>
         <GridContainer>
           {current.map((value, index) => (

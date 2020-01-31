@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import "./index.css";
 import styled from "@emotion/styled";
 import Game from "./components/Game";
+import Board from "./Board";
 
 const Container = styled.div`
   display: flex;
@@ -10,12 +11,12 @@ const Container = styled.div`
   margin: 50px 0;
 `;
 
-const d = {};
-if (d) {
-  console.log("ok");
-} else {
-  console.log("not ok");
-}
+// ReactDOM.render(
+//   <Container>
+//     <Board />
+//   </Container>,
+//   document.getElementById("root")
+// );
 
 ReactDOM.render(
   <Container>
